@@ -1,0 +1,25 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Build GLUT",
+      "type": "shell",
+      "command": "C:/Program Files/CodeBlocks/MinGW/bin/g++.exe",
+      "args": [
+        "PacMan/PacMan.cpp",
+        "-o",
+        "PacMan/PacMan.exe",
+        "-I", "C:/Program Files/CodeBlocks/MinGW/x86_64-w64-mingw32/include",
+        "-L", "C:/Program Files/CodeBlocks/MinGW/x86_64-w64-mingw32/lib",
+        "-lfreeglut",
+        "-lopengl32",
+        "-lglu32"
+      ],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "problemMatcher": []
+    }
+  ]
+}
