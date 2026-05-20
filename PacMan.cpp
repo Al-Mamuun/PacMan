@@ -1,3 +1,4 @@
+
 #include <GL/glut.h>
 #include <windows.h>
 #include <cmath>
@@ -137,7 +138,58 @@ struct Part { float x, y, vx, vy, life, r, g, b; };
 static vector<Fire> fires;
 static vector<Part> parts;
 
+static void burst(float x, float y, float r, float g, float b, int n = 12) {
+    for (int i = 0; i < n; i++) {
+        float a = 2 * PI_F * i / n + 0.3f * (rand() % 100 / 100.0f);
+        float s = 0.5f + 1.5f * (rand() % 100 / 100.0f);
+        parts.push_back({x, y, cosf(a)*s*55, sinf(a)*s*55, 0.85f, r, g, b});
+    }
+}
 
+
+static void fillR(float x, float y, float w, float h) {
+    glBegin(GL_QUADS);
+    glVertex2f(x,     y);
+    glVertex2f(x + w, y);
+    glVertex2f(x + w, y + h);
+    glVertex2f(x,     y + h);
+    glEnd();
+}
+
+static void fillC(float x, float y, float rad, int seg = 32) {
+    glBegin(GL_TRIANGLE_FAN);
+    glVertex2f(x, y);
+    for (int i = 0; i <= seg; i++) {
+        float a = 2 * PI_F * i / seg;
+        glVertex2f(x + cosf(a) * rad, y + sinf(a) * rad);
+    }
+    glEnd();
+}
+
+static void drawStr(float x, float y, const char* s, void* f = GLUT_BITMAP_HELVETICA_12) {
+    glRasterPos2f(x, y);
+    for (; *s; s++) glutBitmapCharacter(f, *s);
+}
+
+static void drawStrL(float x, float y, const char* s) {
+    drawStr(x, y, s, GLUT_BITMAP_HELVETICA_18);
+}
+
+static void drawStrXL(float x, float y, const char* s) {
+    drawStr(x, y, s, GLUT_BITMAP_TIMES_ROMAN_24);
+}
+
+static void roundBox(float x, float y, float w, float h, float rad) {
+    fillR(x + rad, y,       w - 2*rad, h);
+    fillR(x,       y + rad, w,         h - 2*rad);
+    fillC(x + rad,     y + rad,     rad);
+    fillC(x + w - rad, y + rad,     rad);
+    fillC(x + rad,     y + h - rad, rad);
+    fillC(x + w - rad, y + h - rad, rad);
+}
+
+static void blendOn()  { glEnable(GL_BLEND);  glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA); }
+static void blendOff() { glDisable(GL_BLEND); }
 
 
 static void drawGhostAt(float gx, float gy,
@@ -188,6 +240,70 @@ static void drawGhostAt(float gx, float gy,
 }
 
 
+static void drawMaze() {
+    for (int r = 0; r < ROWS; r++) {
+        for (int c = 0; c < COLS; c++) {
+            float x = c * CELL;
+            float y = r * CELL;
+            int   v = maze[r][c];
+
+            if (v == 1) {
+                blendOn();
+                glColor4f(0, 0.2f, 1, 0.15f);
+                fillR(x - 1, y - 1, CELL + 2, CELL + 2);
+                blendOff();
+                glColor3f(0, 0, 0.6f);
+                fillR(x, y, CELL, CELL);
+                glColor3f(0, 0.4f, 1);
+                fillR(x + 3, y + 3, CELL - 6, CELL - 6);
+
+            } else if (v == 2) {
+                glColor3f(1, 0.95f, 0.75f);
+                fillC(x + CELL/2.0f, y + CELL/2.0f, 2.5f);
+
+            } else if (v == 3) {
+                float p = 0.8f + 0.2f * sinf(elapsed * 5);
+                blendOn();
+                glColor4f(1, 0.55f, 0.05f, 0.3f * p);
+                fillC(x + CELL/2.0f, y + CELL/2.0f, 9 * p);
+                blendOff();
+                glColor3f(1, 0.55f, 0.05f);
+                fillC(x + CELL/2.0f, y + CELL/2.0f, 6 * p);
+
+            } else if (v >= 4 && v <= 6) {
+                float cx    = x + CELL/2.0f;
+                float cy    = y + CELL/2.0f;
+                float pulse = 0.8f + 0.2f * sinf(elapsed * 4);
+                blendOn();
+                if (v == 4) {
+                    glColor4f(0, 1, 1, 0.25f * pulse);
+                    fillC(cx, cy, 10 * pulse);
+                    glColor4f(0, 1, 1, 1);
+                    fillC(cx, cy, 5 * pulse);
+                    glColor4f(1, 1, 1, 0.9f);
+                    drawStr(cx - 3, cy + 4, "I");
+                } else if (v == 5) {
+                    glColor4f(0.4f, 0.4f, 1, 0.25f * pulse);
+                    fillC(cx, cy, 10 * pulse);
+                    glColor4f(0.5f, 0.7f, 1, 1);
+                    fillC(cx, cy, 5 * pulse);
+                    glColor4f(1, 1, 1, 0.9f);
+                    drawStr(cx - 3, cy + 4, "F");
+                } else {
+                    glColor4f(1, 1, 0, 0.25f * pulse);
+                    fillC(cx, cy, 10 * pulse);
+                    glColor4f(1, 0.8f, 0, 1);
+                    fillC(cx, cy, 5 * pulse);
+                    glColor4f(0, 0, 0, 0.9f);
+                    drawStr(cx - 3, cy + 4, "S");
+                }
+                blendOff();
+            }
+        }
+    }
+}
+
+
 static void drawPac() {
     float rot   = atan2f((float)pDY, (float)pDX);
     float m     = mouth * PI_F / 180.0f;
@@ -228,6 +344,23 @@ static void drawPac() {
 }
 
 
+static void drawGhosts() {
+    for (int i = 0; i < 4; i++) {
+        drawGhostAt(G[i].x, G[i].y, G[i].r, G[i].g, G[i].b,
+                    G[i].fright, G[i].frightLeft, 1);
+        if (G[i].cloneOn)
+            drawGhostAt(G[i].clX, G[i].clY, G[i].r, G[i].g, G[i].b,
+                        false, 0, 0.4f);
+    }
+    blendOn();
+    for (auto& f : fires) {
+        float a = f.life / 1.5f;
+        if (a > 1) a = 1;
+        glColor4f(1, 0.3f + a * 0.5f, 0, a);
+        fillC(f.x, f.y, 4.5f);
+    }
+    blendOff();
+}
 
 
 static void drawHUD() {
@@ -377,7 +510,88 @@ static void drawHighScores() {
 }
 
 
+static void drawHelp() {
+    glColor3f(0, 0, 0);
+    fillR(0, 0, SCR_W, SCR_H);
+    glColor3f(1, 0.84f, 0);
+    drawStrXL(SCR_W/2.0f - 38, 52, "HELP");
+    glColor3f(0.3f, 0.3f, 0.5f);
+    fillR(30, 65, SCR_W - 60, 2);
 
+    glColor3f(0.4f, 0.8f, 1);
+    drawStrL(35, 92, "CONTROLS");
+    glColor3f(1, 1, 1);
+    drawStr(35, 114, "Arrow Keys / WASD  :  Move Pac-Man");
+    drawStr(35, 130, "P                  :  Pause game");
+    drawStr(35, 146, "R                  :  Resume game");
+    drawStr(35, 162, "ESC                :  Return to Menu");
+    drawStr(35, 178, "ENTER              :  Confirm / Restart");
+
+    glColor3f(0.3f, 0.3f, 0.5f);
+    fillR(30, 188, SCR_W - 60, 1);
+    glColor3f(0.4f, 0.8f, 1);
+    drawStrL(35, 208, "SCORING");
+    glColor3f(1, 1, 0.6f);
+    drawStr(35, 228, "Normal Dot         :  +10 pts");
+    drawStr(35, 244, "Power Pellet       :  +50 pts");
+    drawStr(35, 260, "Eat Blue Ghost     :  +200 pts");
+
+    glColor3f(0.3f, 0.3f, 0.5f);
+    fillR(30, 270, SCR_W - 60, 1);
+    glColor3f(0.4f, 0.8f, 1);
+    drawStrL(35, 290, "SPECIAL PERKS  (collect in maze)");
+    blendOn();
+    glColor4f(0, 1, 1, 0.7f);
+    fillC(55, 316, 7);
+    glColor4f(0.5f, 0.7f, 1, 0.7f);
+    fillC(55, 334, 7);
+    glColor4f(1, 1, 0, 0.7f);
+    fillC(55, 352, 7);
+    blendOff();
+    glColor3f(0, 1, 1);
+    drawStr(35, 314, " I");
+    glColor3f(0.85f, 1, 0.85f);
+    drawStr(72, 314, "INVISIBLE  - Ghosts lose track of you (4s)");
+    glColor3f(0.5f, 0.8f, 1);
+    drawStr(35, 332, " F");
+    glColor3f(0.85f, 1, 0.85f);
+    drawStr(72, 332, "FREEZE     - All ghosts frozen in place (4s)");
+    glColor3f(1, 1, 0);
+    drawStr(35, 350, " S");
+    glColor3f(0.85f, 1, 0.85f);
+    drawStr(72, 350, "SPEED      - Pac-Man moves 2x faster (5s)");
+
+    glColor3f(0.3f, 0.3f, 0.5f);
+    fillR(30, 362, SCR_W - 60, 1);
+    glColor3f(0.4f, 0.8f, 1);
+    drawStrL(35, 382, "GHOSTS");
+    drawGhostAt(52, 405, 1, 0.05f, 0.05f, false, 0, 1);
+    glColor3f(1, 0.4f, 0.4f);
+    drawStr(68, 409, "Blinky  - Shoots fireballs periodically");
+    drawGhostAt(52, 427, 1, 0.72f, 0.80f, false, 0, 1);
+    glColor3f(1, 0.8f, 0.9f);
+    drawStr(68, 431, "Pinky   - Directly chases your position");
+    drawGhostAt(52, 449, 0, 1, 1, false, 0, 1);
+    glColor3f(0.4f, 1, 1);
+    drawStr(68, 453, "Inky    - Cuts ahead to corner you");
+    drawGhostAt(52, 471, 1, 0.55f, 0.10f, false, 0, 1);
+    glColor3f(1, 0.7f, 0.3f);
+    drawStr(68, 475, "Clyde   - Creates ghostly clone briefly");
+
+    glColor3f(0.3f, 0.3f, 0.5f);
+    fillR(30, 487, SCR_W - 60, 1);
+    glColor3f(0.4f, 0.8f, 1);
+    drawStrL(35, 505, "TIPS");
+    glColor3f(0.8f, 1, 0.8f);
+    drawStr(35, 524, "Eat Power Pellet  =>  ghosts turn blue!");
+    drawStr(35, 540, "Blue ghost  =>  eat for +200 bonus pts");
+    drawStr(35, 556, "Clear all dots to advance to next level");
+    drawStr(35, 572, "Ghosts get faster each level - good luck!");
+    glColor3f(0.3f, 0.3f, 0.5f);
+    fillR(30, 582, SCR_W - 60, 2);
+    glColor3f(0.45f, 0.45f, 0.45f);
+    drawStr(SCR_W/2.0f - 100, SCR_H - 10, "Press any key or click to go back");
+}
 
 
 static void drawOverlay(const char* title, float tr, float tg, float tb) {
@@ -585,6 +799,81 @@ static void loseLife() {
     }
 }
 
+static void updateGhost(Ghost& gh, float dt) {
+    if (perkFreeze && !gh.fright) return;
+
+    float spd = gh.speed * (gh.fright ? 0.45f : 1.0f);
+    float ex  = gh.tgtX - gh.x;
+    float ey  = gh.tgtY - gh.y;
+    float d   = sqrtf(ex*ex + ey*ey);
+
+    if (d < spd * dt * 2.0f) {
+        gh.x = gh.tgtX;
+        gh.y = gh.tgtY;
+        ghostPickNext(gh);
+    } else {
+        gh.x += gh.dx * spd * dt;
+        gh.y += gh.dy * spd * dt;
+    }
+
+    if (gh.fright) {
+        gh.frightLeft -= dt;
+        if (gh.frightLeft <= 0) gh.fright = false;
+    }
+
+    if (gh.id == BLINKY) {
+        gh.fireCD -= dt;
+        if (gh.fireCD <= 0) {
+            gh.fireCD = 0.6f + (rand() % 5) * 0.12f;
+            float fx = pX - gh.x;
+            float fy = pY - gh.y;
+            float fl = sqrtf(fx*fx + fy*fy);
+            if (fl > 0.001f) {
+                fx /= fl;
+                fy /= fl;
+            }
+            fires.push_back({gh.x, gh.y, fx*125, fy*125, 1.5f});
+        }
+    }
+
+    if (gh.id == CLYDE) {
+        if (!gh.cloneOn && (int)elapsed % 12 == 0 && elapsed > 5 && dt > 0) {
+            gh.cloneOn = true;
+            gh.clX     = gh.x;
+            gh.clY     = gh.y;
+            gh.clLife  = 3.0f;
+        }
+        if (gh.cloneOn) {
+            gh.clLife -= dt;
+            gh.clX    += gh.dx * spd * 0.55f * dt;
+            gh.clY    += gh.dy * spd * 0.55f * dt;
+            if (gh.clLife <= 0) gh.cloneOn = false;
+            float cx2 = pX - gh.clX;
+            float cy2 = pY - gh.clY;
+            if (cx2*cx2 + cy2*cy2 < (CELL*0.62f)*(CELL*0.62f) && !gh.fright)
+                loseLife();
+        }
+    }
+
+    float dx2 = pX - gh.x;
+    float dy2 = pY - gh.y;
+    if (dx2*dx2 + dy2*dy2 < (CELL*0.62f)*(CELL*0.62f)) {
+        if (gh.fright) {
+            score += 200;
+            sndEatGhost();
+            burst(gh.x, gh.y, gh.r, gh.g, gh.b, 16);
+            gh.fright = false;
+            gh.x      = cellCx(10);
+            gh.y      = cellCy(10);
+            gh.tgtX   = gh.x;
+            gh.tgtY   = gh.y;
+            gh.dx     = 1;
+            gh.dy     = 0;
+        } else {
+            loseLife();
+        }
+    }
+}
 
 
 static void updatePac(float dt) {
